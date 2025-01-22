@@ -2,6 +2,8 @@ import express from 'express';
 import sqlite from 'better-sqlite3';
 import cors from 'cors';
 
+// Example with a separated Backend
+
 const DUMMY_NEWS = [
     {
         id: 'n1',

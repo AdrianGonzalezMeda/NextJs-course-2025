@@ -1,63 +1,90 @@
-import NewsList from "@/components/news-list";
+import { Suspense } from 'react';
+import Link from 'next/link';
+
+import NewsList from '@/components/news-list';
 import {
     getAvailableNewsMonths,
     getAvailableNewsYears,
     getNewsForYear,
-    getNewsForYearAndMonth
-} from "@/lib/news";
-import Link from 'next/link'
+    getNewsForYearAndMonth,
+} from '@/lib/news';
 
 // "Catch all route": This catches any route that matches the /archive/* pattern.
 // The parameter value will be an array that will contain the captured segments. The @archive parallel path
 // it will not have the page.js file because it conflicts with the page.js file of our "catch all" route
-const FilteredNewsPage = ({ params }) => {
-    const filter = params.filter;
-    const selectedYear = filter?.[0]; // shortcut: filter ? filter[0] : undefined
-    const selectedMonth = filter?.[1];
-    let news;
-    let newsContent = <p>No news found for the selected period</p>
-    let links = getAvailableNewsYears();
+async function FilterHeader({ year, month }) {
+    const availableYears = await getAvailableNewsYears();
+    let links = availableYears;
 
-    if (selectedYear && !selectedMonth) {
-        news = getNewsForYear(selectedYear);
-        links = getAvailableNewsMonths(selectedYear);
+    if (
+        (year && !availableYears.includes(year)) ||
+        (month && !getAvailableNewsMonths(year).includes(month))
+    ) {
+        throw new Error('Invalid filter.');
     }
 
-    if (selectedYear && selectedMonth) {
-        news = getNewsForYearAndMonth(selectedYear, selectedMonth);
+    if (year && !month) {
+        links = getAvailableNewsMonths(year);
+    }
+
+    if (year && month) {
         links = [];
     }
 
-    if (news && news.length > 0) {
-        newsContent = <NewsList news={news} />
+    return (
+        <header id="archive-header">
+            <nav>
+                <ul>
+                    {links.map((link) => {
+                        const href = year
+                            ? `/archive/${year}/${link}`
+                            : `/archive/${link}`;
+
+                        return (
+                            <li key={link}>
+                                <Link href={href}>{link}</Link>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </nav>
+        </header>
+    );
+}
+
+async function FilteredNews({ year, month }) {
+    let news;
+
+    if (year && !month) {
+        news = await getNewsForYear(year);
+    } else if (year && month) {
+        news = await getNewsForYearAndMonth(year, month);
     }
 
-    // Validate path segments
-    if ((selectedYear && !getAvailableNewsYears().includes(+selectedYear)) ||
-        (selectedMonth && !getAvailableNewsMonths(selectedYear).includes(+selectedMonth))) { // cast to number
-            throw new Error('Invalid filter.');
+    let newsContent = <p>No news found for the selected period.</p>;
+
+    if (news && news.length > 0) {
+        newsContent = <NewsList news={news} />;
     }
+
+    return newsContent;
+}
+
+export default async function FilteredNewsPage({ params }) {
+    const filter = params.filter;
+
+    const selectedYear = filter?.[0]; // shortcut: filter ? filter[0] : undefined
+    const selectedMonth = filter?.[1];
 
     return (
         <>
-            <header id="archive-header">
-                <nav>
-                    <ul>
-                        {links.map(link => {
-                            const href = selectedYear
-                                ? `/archive/${selectedYear}/${link}`
-                                : `/archive/${link}`;
-
-                            return <li key={link}>
-                                <Link href={href}>{link}</Link>
-                            </li>
-                        })}
-                    </ul>
-                </nav>
-            </header>
-            {newsContent}
+            {/* <Suspense fallback={<p>Loading filter...</p>}>
+                You can wrap each component if they have different load time to not wait till both are loaded
+            </Suspense> */}
+            <Suspense fallback={<p>Loading news...</p>}>
+                <FilterHeader year={selectedYear} month={selectedMonth} />
+                <FilteredNews year={selectedYear} month={selectedMonth} />
+            </Suspense>
         </>
-    )
+    );
 }
-
-export default FilteredNewsPage
